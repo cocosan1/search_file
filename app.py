@@ -90,42 +90,43 @@ def make_db_from_gdrive():
         # ファイルの内容をバイト列として変数に格納
         file_content = service.files().get_media(fileId=file_id).execute()
 
-        file_path = os.path.join('./temp', file_name)
-        with open(file_path, "wb") as f:
-            f.write(file_content)
-        
-        ######################################index化
-        #PDFからテキストの抽出
-        doc = get_text_from_pdf(file_path)
+        if file_content is not None:
+            file_path = os.path.join('./temp', file_name)
+            with open(file_path, "wb") as f:
+                f.write(file_content)
+            
+            ######################################index化
+            #PDFからテキストの抽出
+            doc = get_text_from_pdf(file_path)
 
-        if doc:
-        
-            # ここでベクトル化を行う
-            # openai.embeddings_utils.embeddings_utilsを使うともっとシンプルにかけます
-            res = openai.Embedding.create(
-                model='text-embedding-ada-002',
-                input=doc
-            )
+            if doc:
+            
+                # ここでベクトル化を行う
+                # openai.embeddings_utils.embeddings_utilsを使うともっとシンプルにかけます
+                res = openai.Embedding.create(
+                    model='text-embedding-ada-002',
+                    input=doc
+                )
 
-            # ベクトルをデータベースに追加
-            index.append({
+                # ベクトルをデータベースに追加
+                index.append({
+                    'title': file_name,
+                    'body': doc,
+                    'embedding': res['data'][0]['embedding']
+                })
+
+            else :
+                index.append({
                 'title': file_name,
                 'body': doc,
-                'embedding': res['data'][0]['embedding']
+                'embedding': ''
             })
-
-        else :
-            index.append({
-            'title': file_name,
-            'body': doc,
-            'embedding': ''
-        })
+                
+            #PDFファイルの削除
+            os.remove(file_path)
             
-        #PDFファイルの削除
-        os.remove(file_path)
-        
-    with open('index.json', 'w') as f:
-        json.dump(index, f)
+        with open('index.json', 'w') as f:
+            json.dump(index, f)
 
 def search_file():
     # これが検索用の文字列
@@ -190,7 +191,7 @@ def search_file():
         # ファイルの内容をバイト列として変数に格納
         file_content = service.files().get_media(fileId=file_id).execute()
 
-        file_path = os.path.join(cwd, 'temp', slct_fname)
+        file_path = os.path.join('./temp', slct_fname)
         with open(file_path, "wb") as f:
             f.write(file_content)
         
