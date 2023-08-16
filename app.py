@@ -22,8 +22,12 @@ creds_dict = st.secrets["gcp_service_account"]
 creds = service_account.Credentials.from_service_account_info(creds_dict)
 service = build("drive", "v3", credentials=creds)
 
-# #current working dir
-# cwd = os.path.dirname(__file__)
+#current working dir
+cwd = os.path.dirname(__file__)
+
+#tempフォルダ作成
+temp_dir = "temp"
+os.makedirs(temp_dir, exist_ok=True)
 
 folder_name = 'search_file'
 
@@ -100,8 +104,7 @@ def make_db_from_gdrive():
         file_content = service.files().get_media(fileId=file_id).execute()
 
         if file_content is not None:
-            file_path = f'./temp/{file_name}'
-            # file_path = os.path.join('./temp', file_name)
+            file_path = os.path.join(cwd, temp_dir, file_name)
             with open(file_path, "wb") as f:
                 f.write(file_content)
             
