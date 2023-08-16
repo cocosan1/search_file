@@ -90,7 +90,7 @@ def make_db_from_gdrive():
         # ファイルの内容をバイト列として変数に格納
         file_content = service.files().get_media(fileId=file_id).execute()
 
-        file_path = os.path.join('temp', file_name)
+        file_path = os.path.join('./temp', file_name)
         with open(file_path, "wb") as f:
             f.write(file_content)
         
