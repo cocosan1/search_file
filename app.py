@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import io
 import PyPDF2
 import json
 
@@ -8,26 +9,29 @@ from openai.embeddings_utils import cosine_similarity
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
 
-st.set_page_config(page_title='file serch')
-st.markdown('### file serch')
+st.set_page_config(page_title='search a file')
+st.markdown('### search a file')
 
 OPENAI_API_KEY = st.secrets['OPENAI_API_KEY']
 openai.api_key = OPENAI_API_KEY
+
+# Google Drive API authentication
+creds_dict = st.secrets["gcp_service_account"]
+creds = service_account.Credentials.from_service_account_info(creds_dict)
+service = build("drive", "v3", credentials=creds)
 
 #current working dir
 cwd = os.path.dirname(__file__)
 
 folder_name = 'search_file'
 
+index = []
 
-#google driveからPDFファイルの抽出
+#########################gdriveからPDFファイルのlist in dictファイルの取り出し
 def get_files_from_gdrive():
-    # Google Drive API authentication
-    creds_dict = st.secrets["gcp_service_account"]
-    creds = service_account.Credentials.from_service_account_info(creds_dict)
-    service = build("drive", "v3", credentials=creds)
-
+   
     # Search for the folder based on its name
     query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder'"
     results = service.files().list(q=query).execute()
@@ -45,25 +49,9 @@ def get_files_from_gdrive():
     results = service.files().list(q=query).execute()
     items = results.get("files", [])
 
-    if not items:
-        st.warning(f"No files found in folder: {folder_name}")
-        return
+    return items
 
-    # Download and save each file
-    for item in items:
-        file_id = item["id"]
-        file_name = item["name"]
-        # ファイルの内容をバイト列として変数に格納
-        file_content = service.files().get_media(fileId=file_id).execute()
-
-        file_path = os.path.join(cwd, 'data', file_name)
-        with open(file_path, "wb") as f:
-            f.write(file_content)
-
-
-
-
-#PDFからテキスト抽出
+#############################PDFからテキスト抽出
 def get_text_from_pdf(pdf_path):
 
     # PDFファイルを開く
@@ -83,21 +71,32 @@ def get_text_from_pdf(pdf_path):
 
     return text
 
+###########################################google driveからPDFファイルの抽出
+def make_db_from_gdrive():
 
-# フォルダのパスを指定
-folder_path = './data/'
+    #jsonファイルの削除
+    os.remove('./index.json')
+    #gdriveからＰＤＦファイルのバイナリデータの取り出し
+    items = get_files_from_gdrive()
 
-# フォルダ内のファイル一覧を取得
-files = os.listdir(folder_path)
+    if not items:
+        st.warning(f"No files found in folder: {folder_name}")
+        return
 
+    # Download and save each file
+    for item in items:
+        file_id = item["id"]
+        file_name = item["name"]
+        # ファイルの内容をバイト列として変数に格納
+        file_content = service.files().get_media(fileId=file_id).execute()
 
-#enbedding後jsonファイル作成
-def make_db():
-    
-    index = []
-    for file in files:
-        pdf_path = os.path.join(folder_path, file)
-        doc = get_text_from_pdf(pdf_path)
+        file_path = os.path.join(cwd, 'temp', file_name)
+        with open(file_path, "wb") as f:
+            f.write(file_content)
+        
+        ######################################index化
+        #PDFからテキストの抽出
+        doc = get_text_from_pdf(file_path)
 
         if doc:
         
@@ -110,17 +109,20 @@ def make_db():
 
             # ベクトルをデータベースに追加
             index.append({
-                'title': file,
+                'title': file_name,
                 'body': doc,
                 'embedding': res['data'][0]['embedding']
             })
 
         else :
             index.append({
-            'title': file,
+            'title': file_name,
             'body': doc,
             'embedding': ''
         })
+            
+        #PDFファイルの削除
+        os.remove(file_path)
         
     with open('index.json', 'w') as f:
         json.dump(index, f)
@@ -178,26 +180,38 @@ def search_file():
             else:
                 continue
         
-        # dataフォルダ内のPDFファイル一覧を取得
-        pdf_files = [f for f in os.listdir("./data") if f.endswith(".pdf")]
+        #Gdriveから list in dictファイル
+        pdf_files = get_files_from_gdrive()
 
-        if st.button("ダウンロード"):
-            # 選択されたファイルをダウンロード
-            with open(os.path.join("./data", slct_fname), "rb") as pdf_file:
-                st.download_button(
-                    label="ここをクリックしてダウンロード",
-                    data=pdf_file,
-                    file_name=slct_fname,
-                    mime="application/pdf",
-                )
-    
+        # Download and save each file
+        selected_pdf = [pdf_file for pdf_file in pdf_files if pdf_file["name"] == slct_fname][0]
+        file_id = selected_pdf["id"]
+        
+        # ファイルの内容をバイト列として変数に格納
+        file_content = service.files().get_media(fileId=file_id).execute()
+
+        file_path = os.path.join(cwd, 'temp', slct_fname)
+        with open(file_path, "wb") as f:
+            f.write(file_content)
+        
+        #PDFファイルのダウンロード
+        with open(os.path.join("./temp", slct_fname), "rb") as pdf_file:
+            st.download_button(
+                label="download",
+                data=pdf_file,
+                file_name=slct_fname,
+                mime="application/pdf",
+            )
+        
+        #PDFファイルの削除
+        os.remove(file_path)
+        
 
 def main():
     # アプリケーション名と対応する関数のマッピング
     apps = {
         'ファイルの検索': search_file,
-        'gdriveからPDFファイルの抽出': get_files_from_gdrive,
-        'PDFのindex化': make_db,
+        'gdriveからPDFファイル抽出 - index化 - db作成': make_db_from_gdrive,
 
     }
     selected_app_name = st.selectbox(label='項目の選択',
