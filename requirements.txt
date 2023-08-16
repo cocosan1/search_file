@@ -45,6 +45,7 @@ protobuf==4.24.0
 pyarrow==12.0.1
 pyasn1==0.5.0
 pyasn1-modules==0.3.0
+pycryptodome==3.18.0
 pydeck==0.8.0
 Pygments==2.16.1
 Pympler==1.0.1
