@@ -74,8 +74,17 @@ def get_text_from_pdf(pdf_path):
 ###########################################google driveからPDFファイルの抽出
 def make_db_from_gdrive():
 
-    #jsonファイルの削除
-    os.remove('./index.json')
+    #index.jsonの削除
+    file_path = "./index.json"
+
+    if os.path.exists(file_path):
+        os.remove(file_path)
+        st.write("index.json を削除しました。")
+        st.write('テキストのindex化作業を開始します。')
+    else:
+        st.write("index.json は存在しません。")
+        st.write('テキストのindex化作業を開始します。')
+
     #gdriveからＰＤＦファイルのバイナリデータの取り出し
     items = get_files_from_gdrive()
 
@@ -91,7 +100,8 @@ def make_db_from_gdrive():
         file_content = service.files().get_media(fileId=file_id).execute()
 
         if file_content is not None:
-            file_path = os.path.join('./temp', file_name)
+            file_path = f'./temp/{file_name}'
+            # file_path = os.path.join('./temp', file_name)
             with open(file_path, "wb") as f:
                 f.write(file_content)
             
@@ -127,6 +137,8 @@ def make_db_from_gdrive():
             
         with open('index.json', 'w') as f:
             json.dump(index, f)
+        
+    st.write('index.jsonの作成が完了しました。')
 
 def search_file():
     # これが検索用の文字列
